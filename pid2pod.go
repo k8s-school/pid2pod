@@ -7,20 +7,11 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
 const ShellToUse = "bash"
-
-func Shellout(command string) (error, string, string) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd := exec.Command(ShellToUse, "-c", command)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	return err, stdout.String(), stderr.String()
-}
 
 type Container struct {
 	Namespace  string
@@ -30,41 +21,78 @@ type Container struct {
 	PrimaryPID int
 }
 
-func GetContainerDetails() error {
+func Shellout(command string) (string, error) {
 	var errOut error
-	cmd := "crictl ps -q"
-	err, out, stderr := Shellout(cmd)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := exec.Command(ShellToUse, "-c", command)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
 	if err != nil {
 		errMsg := fmt.Sprintf("error running command %v: %v", cmd, err)
 		errOut = errors.New(errMsg)
-		return errOut
+		return "", errOut
 	}
-	if stderr != "" {
+	if len(stderr.String()) == 0 {
 		errMsg := fmt.Sprintf("error returned by command %v: %v", cmd, stderr)
 		errOut = errors.New(errMsg)
-		return errOut
+		return "", errOut
+	}
+	return stdout.String(), nil
+}
+
+func GetContainerIds() ([]string, error) {
+	cmd := "crictl ps -q"
+	out, err := Shellout(cmd)
+	if err != nil {
+		return nil, err
 	}
 	containerIds := SplitLines(out)
+	return containerIds, nil
+}
 
-	for _, cid := range containerIds {
-		goTemplate := `NS:{{ index .info.config.labels "io.kubernetes.pod.namespace"}} POD:{{ index .info.config.labels "io.kubernetes.pod.name"}} CONTAINER:{{ index .info.config.labels "io.kubernetes.container.name"}} PRIMARY PID:{{.info.pid}}`
+func GetContainerDetails() ([]Container, error) {
 
-		cmdTpl := `crictl inspect --output go-template --template '%v' %v`
-
-		cmd = fmt.Sprintf(cmdTpl, goTemplate, cid)
-		log.Println(cmd)
-
-		err, out, stderr = Shellout(cmd)
-		if err != nil {
-			errMsg := fmt.Sprintf("error running command %v: %v", cmd, err)
-			errOut = errors.New(errMsg)
-		}
-		log.Println(out)
-		log.Println(stderr)
-		log.Println(errOut)
+	containerIds, err := GetContainerIds()
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	var containers []Container
+
+	var cmd, out string
+	sep := ';'
+	goTemplate := `{{ index .info.config.labels "io.kubernetes.pod.namespace"}}%1$s{{ index .info.config.labels "io.kubernetes.pod.name"}}%1$s{{ index .info.config.labels "io.kubernetes.container.name"}}%1$s{{.info.pid}}`
+	goTemplate = fmt.Sprintf(goTemplate, sep)
+	cmdTpl := `crictl inspect --output go-template --template '%v' %v`
+	for _, cid := range containerIds {
+
+		cmd = fmt.Sprintf(cmdTpl, goTemplate, cid)
+		out, err = Shellout(cmd)
+		if err != nil {
+			return nil, err
+		}
+		log.Println(out)
+
+		containerDetails := strings.Split(out, string(sep))
+		ns := containerDetails[0]
+		pod := containerDetails[1]
+		name := containerDetails[2]
+		primaryPID, err := strconv.Atoi(containerDetails[3])
+		if err != nil {
+			return nil, err
+		}
+		container := Container{
+			ns,
+			pod,
+			cid,
+			name,
+			primaryPID,
+		}
+		containers = append(containers, container)
+	}
+	return containers, nil
 }
 
 func SplitLines(s string) []string {
