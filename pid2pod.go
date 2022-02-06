@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	ps "github.com/mitchellh/go-ps"
 )
 
 const ShellToUse = "bash"
@@ -34,7 +36,7 @@ func Shellout(command string) (string, error) {
 		errOut = errors.New(errMsg)
 		return "", errOut
 	}
-	if len(stderr.String()) == 0 {
+	if len(stderr.String()) != 0 {
 		errMsg := fmt.Sprintf("error returned by command %v: %v", cmd, stderr)
 		errOut = errors.New(errMsg)
 		return "", errOut
@@ -58,28 +60,28 @@ func GetContainerDetails() ([]Container, error) {
 	if err != nil {
 		return nil, err
 	}
+	// log.Printf("Container IDs: %s\n", containerIds)
 
 	var containers []Container
 
 	var cmd, out string
 	sep := ';'
-	goTemplate := `{{ index .info.config.labels "io.kubernetes.pod.namespace"}}%1$s{{ index .info.config.labels "io.kubernetes.pod.name"}}%1$s{{ index .info.config.labels "io.kubernetes.container.name"}}%1$s{{.info.pid}}`
-	goTemplate = fmt.Sprintf(goTemplate, sep)
+	goTemplate := `{{ index .info.config.labels "io.kubernetes.pod.namespace"}}%c{{ index .info.config.labels "io.kubernetes.pod.name"}}%c{{ index .info.config.labels "io.kubernetes.container.name"}}%c{{.info.pid}}`
+	goTemplate = fmt.Sprintf(goTemplate, sep, sep, sep)
 	cmdTpl := `crictl inspect --output go-template --template '%v' %v`
 	for _, cid := range containerIds {
-
 		cmd = fmt.Sprintf(cmdTpl, goTemplate, cid)
 		out, err = Shellout(cmd)
 		if err != nil {
 			return nil, err
 		}
-		log.Println(out)
 
 		containerDetails := strings.Split(out, string(sep))
 		ns := containerDetails[0]
 		pod := containerDetails[1]
 		name := containerDetails[2]
-		primaryPID, err := strconv.Atoi(containerDetails[3])
+		tmp := strings.TrimSpace(containerDetails[3])
+		primaryPID, err := strconv.Atoi(tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +94,40 @@ func GetContainerDetails() ([]Container, error) {
 		}
 		containers = append(containers, container)
 	}
+
+	// log.Println(containers)
 	return containers, nil
+}
+
+func GetContainerFromPrimaryPid(containers []Container, pid int) (Container, bool) {
+	for i := range containers {
+		if containers[i].PrimaryPID == pid {
+			return containers[i], true
+		}
+	}
+	return Container{}, false
+}
+
+func GetPPid(pid int) int {
+	log.Printf("PID %v", pid)
+	p, err := ps.FindProcess(pid)
+	if err != nil {
+		panic(err)
+	}
+	return p.PPid()
+}
+
+func GetContainerFromPid(containers []Container, pid int) (Container, bool) {
+	if pid == 1 {
+		return Container{}, false
+	}
+	container, found := GetContainerFromPrimaryPid(containers, pid)
+	if found {
+		return container, true
+	} else {
+		pid = GetPPid(pid)
+		return GetContainerFromPrimaryPid(containers, pid)
+	}
 }
 
 func SplitLines(s string) []string {
