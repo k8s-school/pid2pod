@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -108,25 +107,31 @@ func GetContainerFromPrimaryPid(containers []Container, pid int) (Container, boo
 	return Container{}, false
 }
 
-func GetPPid(pid int) int {
-	log.Printf("PID %v", pid)
+func GetPPid(pid int) (int, error) {
+	// log.Printf("PID %v", pid)
 	p, err := ps.FindProcess(pid)
 	if err != nil {
-		panic(err)
+		return -1, err
+	} else if p == nil {
+		error := fmt.Errorf("no process with pid %v", pid)
+		return -1, error
 	}
-	return p.PPid()
+	return p.PPid(), nil
 }
 
-func GetContainerFromPid(containers []Container, pid int) (Container, bool) {
+func GetContainerFromPid(containers []Container, pid int) (Container, bool, error) {
 	if pid == 1 {
-		return Container{}, false
+		return Container{}, false, nil
 	}
 	container, found := GetContainerFromPrimaryPid(containers, pid)
 	if found {
-		return container, true
+		return container, true, nil
 	} else {
-		pid = GetPPid(pid)
-		return GetContainerFromPrimaryPid(containers, pid)
+		ppid, err := GetPPid(pid)
+		if err != nil {
+			return Container{}, false, err
+		}
+		return GetContainerFromPid(containers, ppid)
 	}
 }
 
