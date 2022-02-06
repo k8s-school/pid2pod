@@ -126,13 +126,12 @@ func GetContainerFromPid(containers []Container, pid int) (Container, bool, erro
 	container, found := GetContainerFromPrimaryPid(containers, pid)
 	if found {
 		return container, true, nil
-	} else {
-		ppid, err := GetPPid(pid)
-		if err != nil {
-			return Container{}, false, err
-		}
-		return GetContainerFromPid(containers, ppid)
 	}
+	ppid, err := GetPPid(pid)
+	if err != nil {
+		return Container{}, false, err
+	}
+	return GetContainerFromPid(containers, ppid)
 }
 
 func SplitLines(s string) []string {
