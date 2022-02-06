@@ -6,6 +6,14 @@ Display (Namespace, Pod, Container, Primary PID) from a host PID, fails if the t
 
 User MUST be able to run `crictl` on the host.
 
+## Install
+
+```shell
+curl -Lo ./pod2pid https://github.com/k8s-school/pid2pod/releases/download/v0.0.1/pid2pod-linux-amd64 
+chmod +x ./pod2pid
+mv ./pod2pid /some-dir-in-your-PATH/pod2pid
+```
+
 ## Examples
 
 ```shell
