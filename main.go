@@ -19,7 +19,7 @@ func main() {
 	}
 	container, found := GetContainerFromPid(containers, *pid)
 	if !found {
-		fmt.Fprintf(os.Stderr, "process %v is running on host", pid)
+		fmt.Fprintf(os.Stderr, "process %d is running on host", *pid)
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stdout, "%v", container)
