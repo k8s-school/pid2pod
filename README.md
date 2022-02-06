@@ -1,4 +1,4 @@
-# pid2Pod
+# pid2pod
 
 Display (Namespace, Pod, Container, Primary PID) from a host PID, fails if the target process is running on host
 
