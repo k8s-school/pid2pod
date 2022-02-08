@@ -1,4 +1,4 @@
-# 💻 pid2pod
+# ✨ pid2pod
 
 Retrieve and display Pod and Container from a host PID, fails if the target process is running on host
 
