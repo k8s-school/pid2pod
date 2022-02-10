@@ -1,6 +1,6 @@
 # ✨ pid2pod
 
-Retrieve and display Pod and Container from a host PID, fails if the target process is running on host
+Retrieve and display Pod and Container from a host PID, fails if the target process is not running inside a container
 
 ## 🏁 Pre-requisites
 
