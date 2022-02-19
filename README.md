@@ -31,3 +31,9 @@ process 182 is running on host
 ./pid2pod $RANDOM
 error: no process with pid 18489
 ```
+## TODO
+
+Retrieve pod related to `pause` process, relationship between those two is tracked here:
+```shell
+crictl inspectp  --output go-template --template "{{.info.pid}}" 20bdea27e88d3
+```
